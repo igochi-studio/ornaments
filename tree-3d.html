@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Christmas Tree</title>
+    <style>
+        @import url('https://fonts.cdnfonts.com/css/sequel-sans');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Sequel Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow: hidden;
+            background: #FFFFFF;
+            color: #525252;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        /* Instructions overlay */
+        .instructions {
+            position: fixed;
+            top: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-family: 'Sequel Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 315;
+            letter-spacing: -0.28px;
+            color: #525252;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+            text-align: center;
+        }
+
+        /* Bottom Panel - Same as showcase.html */
+        .panel-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #FFFFFF;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 0 64px 0;
+        }
+
+        .ornament-panel {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            width: 100%;
+            max-width: 1400px;
+            padding: 0 64px;
+        }
+
+        .ornament-grid {
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            padding: 16px 0;
+        }
+
+        .ornament-grid::-webkit-scrollbar {
+            display: none;
+        }
+
+        .ornament-item {
+            width: 96px;
+            height: 96px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #FFFFFF;
+            border-radius: 48px;
+            padding: 12px;
+            box-shadow:
+                inset 0 0 0 0.5px rgba(237, 237, 237, 1),
+                0 8px 10px -6px rgba(237, 237, 237, 0.2),
+                0 20px 25px -5px rgba(237, 237, 237, 0.2);
+            cursor: grab;
+            transition: transform 0.2s ease;
+        }
+
+        .ornament-item:hover {
+            transform: translateY(-4px);
+        }
+
+        .ornament-item.dragging {
+            cursor: grabbing;
+            opacity: 0.5;
+        }
+
+        .ornament-item img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            pointer-events: none;
+        }
+
+        .panel-title {
+            font-family: 'Sequel Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 315;
+            letter-spacing: -0.28px;
+            color: #525252;
+            text-transform: uppercase;
+        }
+
+        /* Loading indicator */
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Sequel Sans', sans-serif;
+            font-size: 16px;
+            color: #525252;
+            z-index: 200;
+        }
+
+        /* Drag preview */
+        .drag-preview {
+            position: fixed;
+            width: 64px;
+            height: 64px;
+            pointer-events: none;
+            z-index: 2000;
+            opacity: 0.8;
+            display: none;
+        }
+
+        .drag-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div class="instructions">
+        🎄 Drag ornaments from below and drop them on the tree • Rotate with mouse/touch
+    </div>
+
+    <div class="loading" id="loading">Loading tree...</div>
+
+    <div class="drag-preview" id="dragPreview">
+        <img src="" alt="ornament">
+    </div>
+
+    <!-- Bottom Panel -->
+    <div class="panel-container">
+        <div class="ornament-panel">
+            <div class="ornament-grid" id="ornamentGrid">
+                <!-- Ornaments will be inserted here -->
+            </div>
+            <div class="panel-title">ORNAMENT COLLECTION</div>
+        </div>
+    </div>
+
+    <!-- Three.js and dependencies -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // Ornament list
+        const icons = [
+            'image 165.png', 'image 166.png', 'image 169.png', 'image 170.png',
+            'image 171.png', 'image 172.png', 'image 173.png', 'image 174.png',
+            'image 175.png', 'image 176.png', 'image 177.png', 'image 178.png',
+            'image 179.png', 'image 180.png', 'image 181.png', 'image 182.png',
+            'image 183.png', 'image 184.png', 'image 185.png', 'image 186.png',
+            'image 187.png', 'image 188.png', 'image 189.png', 'image 190.png',
+            'image 191.png', 'image 192.png', 'image 193.png', 'image 194.png',
+            'image 195.png', 'image 196.png'
+        ];
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+
+        // Camera
+        const camera = new THREE.PerspectiveCamera(
+            50,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        camera.position.set(0, 3, 8);
+        camera.lookAt(0, 2, 0);
+
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight.position.set(5, 10, 5);
+        scene.add(directionalLight);
+
+        // OrbitControls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 4;
+        controls.maxDistance = 15;
+        controls.target.set(0, 2, 0);
+        controls.enablePan = false;
+
+        // Raycaster for detecting tree clicks
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        // Tree and ornaments
+        let treeModel = null;
+        const placedOrnaments = [];
+
+        // Load tree model
+        const loader = new GLTFLoader();
+        loader.load(
+            'christmas-tree.glb',
+            (gltf) => {
+                treeModel = gltf.scene;
+
+                // Make tree black
+                treeModel.traverse((child) => {
+                    if (child.isMesh) {
+                        child.material = new THREE.MeshStandardMaterial({
+                            color: 0x000000,
+                            roughness: 0.8,
+                            metalness: 0.1
+                        });
+                    }
+                });
+
+                // Center and scale tree
+                const box = new THREE.Box3().setFromObject(treeModel);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const scale = 5 / maxDim;
+                treeModel.scale.setScalar(scale);
+
+                treeModel.position.sub(center.multiplyScalar(scale));
+                treeModel.position.y = 0;
+
+                scene.add(treeModel);
+                document.getElementById('loading').style.display = 'none';
+            },
+            (xhr) => {
+                const percent = (xhr.loaded / xhr.total) * 100;
+                document.getElementById('loading').textContent = `Loading tree... ${Math.round(percent)}%`;
+            },
+            (error) => {
+                console.error('Error loading tree:', error);
+                document.getElementById('loading').textContent = 'Error loading tree';
+            }
+        );
+
+        // Populate ornament panel
+        const ornamentGrid = document.getElementById('ornamentGrid');
+        icons.forEach(icon => {
+            const item = document.createElement('div');
+            item.className = 'ornament-item';
+            item.innerHTML = `<img src="icons/${icon}" alt="ornament" data-icon="${icon}">`;
+            item.draggable = true;
+
+            item.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('icon', icon);
+                item.classList.add('dragging');
+
+                // Show drag preview
+                const preview = document.getElementById('dragPreview');
+                preview.querySelector('img').src = `icons/${icon}`;
+                preview.style.display = 'block';
+            });
+
+            item.addEventListener('dragend', (e) => {
+                item.classList.remove('dragging');
+                document.getElementById('dragPreview').style.display = 'none';
+            });
+
+            ornamentGrid.appendChild(item);
+        });
+
+        // Drag preview follow cursor
+        document.addEventListener('dragover', (e) => {
+            const preview = document.getElementById('dragPreview');
+            preview.style.left = e.clientX - 32 + 'px';
+            preview.style.top = e.clientY - 32 + 'px';
+        });
+
+        // Handle drop on tree
+        renderer.domElement.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        renderer.domElement.addEventListener('drop', (e) => {
+            e.preventDefault();
+
+            const icon = e.dataTransfer.getData('icon');
+            if (!icon || !treeModel) return;
+
+            // Calculate mouse position in normalized device coordinates
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            // Raycast to tree
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(treeModel, true);
+
+            if (intersects.length > 0) {
+                const point = intersects[0].point;
+                const normal = intersects[0].face.normal.clone();
+
+                placeOrnament(icon, point, normal);
+            }
+        });
+
+        // Place ornament on tree
+        function placeOrnament(iconName, position, normal) {
+            const textureLoader = new THREE.TextureLoader();
+            textureLoader.load(`icons/${iconName}`, (texture) => {
+                const material = new THREE.SpriteMaterial({
+                    map: texture,
+                    transparent: true
+                });
+
+                const sprite = new THREE.Sprite(material);
+                sprite.position.copy(position);
+
+                // Offset slightly from surface along normal
+                sprite.position.add(normal.multiplyScalar(0.1));
+
+                // Random size variation
+                const size = 0.3 + Math.random() * 0.2;
+                sprite.scale.set(size, size, 1);
+
+                // Store reference
+                sprite.userData = { icon: iconName };
+                placedOrnaments.push(sprite);
+
+                scene.add(sprite);
+            });
+        }
+
+        // Remove ornament on click
+        renderer.domElement.addEventListener('click', (e) => {
+            // Only if not dragging
+            if (e.button !== 0) return;
+
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(placedOrnaments);
+
+            if (intersects.length > 0) {
+                const ornament = intersects[0].object;
+                scene.remove(ornament);
+                const index = placedOrnaments.indexOf(ornament);
+                if (index > -1) placedOrnaments.splice(index, 1);
+            }
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ornament Collection</title>
+    <style>
+        @import url('https://fonts.cdnfonts.com/css/sequel-sans');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #FFFFFF;
+            font-family: 'Sequel Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            color: #525252;
+        }
+
+        /* 3D Canvas Container */
+        #tree-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        /* Bottom Panel Container */
+        .panel-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #FFFFFF;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Collapsed State - Exact Figma specs */
+        .panel-collapsed {
+            height: auto;
+            padding: 0 0 64px 0;
+        }
+
+        /* Expanded State */
+        .panel-expanded {
+            height: auto;
+            padding: 32px 64px 64px 64px;
+        }
+
+        /* Collapsed View */
+        .collapsed-view {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+            max-width: 1400px;
+            padding: 0 64px;
+        }
+
+        .collapsed-left {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .preview-icons {
+            display: flex;
+            align-items: center;
+        }
+
+        .preview-icon {
+            width: 96px;
+            height: 96px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #FFFFFF;
+            border-radius: 48px; /* Perfect circle */
+            padding: 12px;
+            /* Exact shadow stack from Figma */
+            box-shadow:
+                inset 0 0 0 0.5px rgba(237, 237, 237, 1),
+                0 8px 10px -6px rgba(237, 237, 237, 0.2),
+                0 20px 25px -5px rgba(237, 237, 237, 0.2);
+            margin-left: -48px; /* Creates overlap */
+        }
+
+        .preview-icon:first-child {
+            margin-left: 0;
+        }
+
+        .preview-icon img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .more-button {
+            font-family: 'Sequel Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 315;
+            color: #525252;
+            letter-spacing: -0.28px;
+            background: #F8F8F8;
+            border-radius: 8px;
+            padding: 8px 16px;
+        }
+
+        .collapsed-right {
+            font-family: 'Sequel Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 315;
+            letter-spacing: -0.28px;
+            color: #525252;
+            text-transform: uppercase;
+        }
+
+        /* Expanded View */
+        .expanded-view {
+            display: none;
+            width: 100%;
+            height: 100%;
+            flex-direction: column;
+        }
+
+        .expanded-view.active {
+            display: flex;
+        }
+
+        /* Carousel Container */
+        .carousel-section {
+            position: relative;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .carousel-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .carousel-title {
+            font-family: 'Sequel Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 315;
+            letter-spacing: -0.28px;
+            color: #525252;
+            text-transform: uppercase;
+        }
+
+        .close-button {
+            width: 32px;
+            height: 32px;
+            background: #F8F8F8;
+            border: none;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            font-size: 18px;
+            color: #525252;
+            line-height: 1;
+        }
+
+        .close-button:hover {
+            background: #EBEBEB;
+        }
+
+        .carousel-wrapper {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            padding: 20px 0;
+            margin: -20px 0;
+        }
+
+        /* Progressive blur on edges with smooth easing */
+        .carousel-wrapper::before,
+        .carousel-wrapper::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 240px;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .carousel-wrapper::before {
+            left: 0;
+            background: linear-gradient(to right,
+                rgba(255, 255, 255, 1) 0%,
+                rgba(255, 255, 255, 0.98) 10%,
+                rgba(255, 255, 255, 0.92) 25%,
+                rgba(255, 255, 255, 0.8) 40%,
+                rgba(255, 255, 255, 0.6) 55%,
+                rgba(255, 255, 255, 0.35) 70%,
+                rgba(255, 255, 255, 0.15) 85%,
+                transparent 100%);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            mask-image: linear-gradient(to right, black 0%, black 60%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to right, black 0%, black 60%, transparent 100%);
+        }
+
+        .carousel-wrapper::after {
+            right: 0;
+            background: linear-gradient(to left,
+                rgba(255, 255, 255, 1) 0%,
+                rgba(255, 255, 255, 0.98) 10%,
+                rgba(255, 255, 255, 0.92) 25%,
+                rgba(255, 255, 255, 0.8) 40%,
+                rgba(255, 255, 255, 0.6) 55%,
+                rgba(255, 255, 255, 0.35) 70%,
+                rgba(255, 255, 255, 0.15) 85%,
+                transparent 100%);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            mask-image: linear-gradient(to left, black 0%, black 60%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to left, black 0%, black 60%, transparent 100%);
+        }
+
+        .carousel {
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            scroll-behavior: smooth;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            padding: 4px 0;
+        }
+
+        .carousel::-webkit-scrollbar {
+            display: none;
+        }
+
+        .carousel-item {
+            flex-shrink: 0;
+            width: 124px;
+            height: 124px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #FFFFFF;
+            border-radius: 62px;
+            padding: 16px;
+            box-shadow:
+                inset 0 0 0 0.5px rgba(237, 237, 237, 1),
+                0 8px 10px -6px rgba(237, 237, 237, 0.2),
+                0 20px 25px -5px rgba(237, 237, 237, 0.2);
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            user-select: none;
+        }
+
+        .carousel-item:hover {
+            transform: translateY(-4px);
+        }
+
+        .carousel-item img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        /* Carousel Navigation */
+        .carousel-nav {
+            width: 48px;
+            height: 48px;
+            background: #F5F5F5;
+            border: none;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 20px;
+            color: #525252;
+            padding: 0;
+        }
+
+        .carousel-nav:hover {
+            background: #EBEBEB;
+        }
+
+
+        /* Hide collapsed view when expanded */
+        .panel-expanded .collapsed-view {
+            display: none;
+        }
+
+        /* Ornament preview following cursor */
+        .ornament-preview {
+            position: fixed;
+            width: 48px;
+            height: 48px;
+            pointer-events: none;
+            z-index: 10000;
+            display: none;
+            opacity: 0.7;
+            transition: opacity 0.2s ease;
+        }
+
+        .ornament-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Cursor when ornament is selected */
+        body.ornament-selected {
+            cursor: crosshair !important;
+        }
+
+        body.ornament-selected * {
+            cursor: crosshair !important;
+        }
+
+        /* Selected state for carousel item */
+        .carousel-item.selected {
+            box-shadow:
+                inset 0 0 0 2px #525252,
+                0 8px 10px -6px rgba(237, 237, 237, 0.2),
+                0 20px 25px -5px rgba(237, 237, 237, 0.2);
+        }
+
+        /* Reset button */
+        .reset-button {
+            font-family: 'Sequel Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 315;
+            color: #525252;
+            letter-spacing: -0.28px;
+            background: #F8F8F8;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .reset-button:hover {
+            background: #EBEBEB;
+        }
+
+        /* Help/Instructions Dropdown */
+        .help-container {
+            position: fixed;
+            top: 32px;
+            right: 32px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .help-button {
+            font-family: 'Sequel Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 315;
+            color: #525252;
+            letter-spacing: -0.28px;
+            background: #F8F8F8;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .help-button:hover {
+            background: #EBEBEB;
+        }
+
+        .help-arrow {
+            font-size: 12px;
+            transition: transform 0.2s ease;
+        }
+
+        .help-button.open .help-arrow {
+            transform: rotate(180deg);
+        }
+
+        .help-dropdown {
+            background: #FFFFFF;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            max-width: 280px;
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .help-dropdown.open {
+            display: flex;
+        }
+
+        .help-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-family: 'Sequel Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 315;
+            letter-spacing: -0.26px;
+            color: #525252;
+            line-height: 1.5;
+        }
+
+        .help-icon {
+            width: 32px;
+            height: 32px;
+            background: #F8F8F8;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .help-icon svg {
+            display: block;
+        }
+
+        .help-divider {
+            height: 1px;
+            background: #EFEFEF;
+            margin: 4px 0;
+        }
+
+        /* Camera Button */
+        .camera-button {
+            width: 80px;
+            height: 80px;
+            background: transparent;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            padding: 0;
+            margin-top: 8px;
+        }
+
+        .camera-button:hover {
+            transform: translateY(-4px) scale(1.05);
+        }
+
+        .camera-button:active {
+            transform: scale(0.95);
+        }
+
+        .camera-button img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        /* Record Button */
+        .record-button {
+            width: 80px;
+            height: 80px;
+            background: transparent;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            padding: 0;
+            margin-top: 8px;
+        }
+
+        .record-button:hover {
+            transform: translateY(-4px) scale(1.05);
+        }
+
+        .record-button:active {
+            transform: scale(0.95);
+        }
+
+        .record-button.playing img {
+            animation: spin 8s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Record Controls */
+        .record-controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .record-nav-button {
+            flex: 1;
+            padding: 8px 12px;
+            background: #FFFFFF;
+            border: 0.5px solid #EFEFEF;
+            border-radius: 8px;
+            font-family: 'Sequel Sans', sans-serif;
+            font-size: 11px;
+            font-weight: 315;
+            letter-spacing: -0.22px;
+            color: #525252;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .record-nav-button:hover {
+            background: #F5F5F5;
+            transform: translateY(-2px);
+        }
+
+        /* Fireplace Button */
+        .fireplace-button {
+            width: 80px;
+            height: 80px;
+            background: transparent;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            padding: 0;
+            margin-top: 8px;
+        }
+
+        .fireplace-button:hover {
+            transform: translateY(-4px) scale(1.05);
+        }
+
+        .fireplace-button:active {
+            transform: scale(0.95);
+        }
+
+        .fireplace-button.playing {
+            opacity: 0.8;
+        }
+
+        .fireplace-button img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .record-button img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        /* Flash effect */
+        .flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 9999;
+            transition: opacity 0.1s ease;
+        }
+
+        .flash.active {
+            opacity: 0.8;
+        }
+
+        /* Polaroid Gallery */
+        .polaroid-gallery {
+            position: fixed;
+            left: 32px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-height: 70vh;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            z-index: 100;
+            padding: 8px;
+        }
+
+        .polaroid-gallery::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .polaroid-gallery::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .polaroid-gallery::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 2px;
+        }
+
+        .polaroid-item {
+            position: relative;
+            width: 140px;
+            background: #FFFFFF;
+            padding: 12px;
+            padding-bottom: 48px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            transform: rotate(-2deg);
+        }
+
+        .polaroid-item:nth-child(even) {
+            transform: rotate(2deg);
+        }
+
+        .polaroid-item:hover {
+            transform: rotate(0deg) scale(1.05);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+            z-index: 10;
+        }
+
+        .polaroid-image {
+            width: 100%;
+            aspect-ratio: 1.2 / 1.5;  /* 1200x1500 ratio */
+            background: #f5f5f5;
+            display: block;
+        }
+
+        .polaroid-download {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 4px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .polaroid-item:hover .polaroid-download {
+            display: flex;
+            opacity: 1;
+        }
+
+        .polaroid-delete {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 24px;
+            height: 24px;
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 4px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .polaroid-item:hover .polaroid-delete {
+            display: flex;
+            opacity: 1;
+        }
+
+    </style>
+</head>
+<body>
+    <!-- 3D Tree Canvas -->
+    <div id="tree-canvas"></div>
+
+    <!-- Help & Reset Controls -->
+    <div class="help-container">
+        <button class="help-button" id="helpButton">
+            How to use
+            <span class="help-arrow">▼</span>
+        </button>
+        <div class="help-dropdown" id="helpDropdown">
+            <div class="help-item">
+                <div class="help-icon">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#525252" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 8a6 6 0 1 1-1.76-4.24"/>
+                        <path d="M14 4v4h-4"/>
+                    </svg>
+                </div>
+                <div>Use 1 finger to spin your tree</div>
+            </div>
+            <div class="help-item">
+                <div class="help-icon">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#525252" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M8 3v10M3 8h10"/>
+                        <circle cx="5" cy="5" r="1.5" fill="#525252"/>
+                        <circle cx="11" cy="11" r="1.5" fill="#525252"/>
+                    </svg>
+                </div>
+                <div>Use 2 fingers to move or zoom</div>
+            </div>
+            <div class="help-item">
+                <div class="help-icon">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#525252" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="8" cy="8" r="5"/>
+                        <path d="M8 11V8"/>
+                    </svg>
+                </div>
+                <div>Scroll to zoom closer/farther</div>
+            </div>
+            <div class="help-divider"></div>
+            <div class="help-item">
+                <div class="help-icon">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#525252" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M8 2v12M2 8h12"/>
+                    </svg>
+                </div>
+                <div>Tap an ornament → select</div>
+            </div>
+            <div class="help-item">
+                <div class="help-icon">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#525252" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="8" cy="8" r="6"/>
+                    </svg>
+                </div>
+                <div>Tap the tree → hang</div>
+            </div>
+            <div class="help-item">
+                <div class="help-icon">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#525252" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 3l10 10M13 3L3 13"/>
+                    </svg>
+                </div>
+                <div>Tap again → unhang</div>
+            </div>
+        </div>
+        <button class="reset-button" id="resetButton">Reset View</button>
+        <button class="camera-button" id="cameraButton" title="Capture Polaroid">
+            <img src="cam.png" alt="Camera">
+        </button>
+        <button class="record-button" id="recordButton" title="Play Christmas Jazz">
+            <img src="record.png" alt="Record Player">
+        </button>
+        <div class="record-controls">
+            <button class="record-nav-button" id="prevSong">
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#525252" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 12L9 8l6-4v8zM9 12L3 8l6-4v8zM1 4v8"/>
+                </svg>
+                Previous
+            </button>
+            <button class="record-nav-button" id="nextSong">
+                Next
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#525252" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 4l6 4-6 4V4zM7 4l6 4-6 4V4zM15 4v8"/>
+                </svg>
+            </button>
+        </div>
+        <button class="fireplace-button" id="fireplaceButton" title="Fireplace Ambience">
+            <img src="fireplace.png" alt="Fireplace">
+        </button>
+    </div>
+
+    <!-- Ornament preview following cursor -->
+    <div class="ornament-preview" id="ornamentPreview">
+        <img src="" alt="ornament">
+    </div>
+
+    <!-- Flash effect -->
+    <div class="flash" id="flash"></div>
+
+    <!-- Polaroid Gallery -->
+    <div class="polaroid-gallery" id="polaroidGallery"></div>
+
+    <div class="panel-container panel-collapsed" id="panel">
+        <!-- Collapsed View -->
+        <div class="collapsed-view" onclick="event.stopPropagation(); togglePanel()">
+            <div class="collapsed-left">
+                <div class="preview-icons" id="previewIcons">
+                    <!-- Preview icons will be inserted here -->
+                </div>
+                <div class="more-button" id="moreText">+ 27 more</div>
+            </div>
+            <div class="collapsed-right">
+                ORNAMENT COLLECTION
+            </div>
+        </div>
+
+        <!-- Expanded View -->
+        <div class="expanded-view" id="expandedView">
+            <!-- Carousel Section -->
+            <div class="carousel-section">
+                <div class="carousel-wrapper" id="carouselWrapper">
+                    <div class="carousel" id="carousel">
+                        <!-- Carousel items will be inserted here -->
+                    </div>
+                </div>
+                <div class="carousel-header">
+                    <button class="carousel-nav prev" onclick="scrollCarousel(-1)">‹</button>
+                    <button class="carousel-nav next" onclick="scrollCarousel(1)">›</button>
+                    <div class="carousel-title">ORNAMENT COLLECTION</div>
+                    <button class="close-button" onclick="togglePanel()">✕</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const icons = [
+            'image 165.png',
+            'image 166.png',
+            'image 169.png',
+            'image 170.png',
+            'image 171.png',
+            'image 172.png',
+            'image 173.png',
+            'image 174.png',
+            'image 175.png',
+            'image 176.png',
+            'image 177.png',
+            'image 178.png',
+            'image 179.png',
+            'image 180.png',
+            'image 181.png',
+            'image 182.png',
+            'image 183.png',
+            'image 184.png',
+            'image 185.png',
+            'image 186.png',
+            'image 187.png',
+            'image 188.png',
+            'image 189.png',
+            'image 190.png',
+            'image 191.png',
+            'image 192.png',
+            'image 193.png',
+            'image 194.png',
+            'image 195.png',
+            'image 196.png'
+        ];
+
+        // Create preview icons (first 3) - with overlap
+        const previewContainer = document.getElementById('previewIcons');
+        const previewIcons = icons.slice(0, 3);
+
+        previewIcons.forEach(icon => {
+            const div = document.createElement('div');
+            div.className = 'preview-icon';
+            div.innerHTML = `<img src="icons/${icon}" alt="ornament">`;
+            previewContainer.appendChild(div);
+        });
+
+        // Update "more" text
+        const remaining = icons.length - 3;
+        document.getElementById('moreText').textContent = `+ ${remaining} more`;
+
+        // Create carousel items - multiple copies for seamless infinite scroll
+        const carousel = document.getElementById('carousel');
+        const ornamentPreview = document.getElementById('ornamentPreview');
+        const multipleIcons = [...icons, ...icons, ...icons, ...icons, ...icons]; // 5 copies
+
+        // Track selected ornament
+        let selectedOrnament = null;
+        let selectedCarouselItem = null;
+
+        multipleIcons.forEach(icon => {
+            const item = document.createElement('div');
+            item.className = 'carousel-item';
+            item.innerHTML = `<img src="icons/${icon}" alt="ornament">`;
+
+            // Click to select ornament
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+
+                // Deselect previous item
+                if (selectedCarouselItem) {
+                    selectedCarouselItem.classList.remove('selected');
+                }
+
+                // Select this ornament
+                selectedOrnament = icon;
+                selectedCarouselItem = item;
+                item.classList.add('selected');
+
+                // Show preview
+                ornamentPreview.querySelector('img').src = `icons/${icon}`;
+                ornamentPreview.style.display = 'block';
+
+                // Change cursor
+                document.body.classList.add('ornament-selected');
+
+                console.log('Ornament selected:', icon);
+            });
+
+            carousel.appendChild(item);
+        });
+
+        // Track mouse movement to position ornament preview
+        document.addEventListener('mousemove', (e) => {
+            if (selectedOrnament) {
+                // Position preview offset to the right and slightly down from cursor
+                ornamentPreview.style.left = (e.clientX + 20) + 'px';
+                ornamentPreview.style.top = (e.clientY + 20) + 'px';
+            }
+        });
+
+        // Cancel selection with ESC key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && selectedOrnament) {
+                selectedOrnament = null;
+                if (selectedCarouselItem) {
+                    selectedCarouselItem.classList.remove('selected');
+                    selectedCarouselItem = null;
+                }
+                ornamentPreview.style.display = 'none';
+                document.body.classList.remove('ornament-selected');
+                console.log('Selection cancelled');
+            }
+        });
+
+        // Calculate one set width (for infinite scroll tracking)
+        const itemWidth = 124 + 16; // item width + gap
+        const setWidth = icons.length * itemWidth;
+
+        // Don't auto-scroll on load - let it start at natural position
+        // carousel.scrollLeft = setWidth * 2;
+
+
+        // Toggle panel function
+        function togglePanel() {
+            const panel = document.getElementById('panel');
+            const expandedView = document.getElementById('expandedView');
+
+            if (panel.classList.contains('panel-collapsed')) {
+                panel.classList.remove('panel-collapsed');
+                panel.classList.add('panel-expanded');
+                expandedView.classList.add('active');
+            } else {
+                panel.classList.remove('panel-expanded');
+                panel.classList.add('panel-collapsed');
+                expandedView.classList.remove('active');
+            }
+        }
+
+        // Carousel scroll function
+        function scrollCarousel(direction) {
+            const carousel = document.getElementById('carousel');
+            const scrollAmount = 140; // width of item + gap
+            carousel.scrollBy({
+                left: direction * scrollAmount,
+                behavior: 'smooth'
+            });
+        }
+
+        // Seamless infinite scroll logic
+        let isRepositioning = false;
+        let hasInitialized = false;
+
+        carousel.addEventListener('scroll', function() {
+            if (isRepositioning) return;
+
+            // Set initial position on first scroll (not on page load)
+            if (!hasInitialized) {
+                hasInitialized = true;
+                isRepositioning = true;
+                carousel.scrollLeft = setWidth * 2;
+                setTimeout(() => { isRepositioning = false; }, 10);
+                return;
+            }
+
+            const scrollLeft = carousel.scrollLeft;
+
+            // If scrolled into 5th set (too far right), jump back one set
+            if (scrollLeft >= setWidth * 4) {
+                isRepositioning = true;
+                carousel.scrollLeft = scrollLeft - setWidth;
+                setTimeout(() => { isRepositioning = false; }, 10);
+            }
+            // If scrolled into 1st set (too far left), jump forward one set
+            else if (scrollLeft < setWidth * 1) {
+                isRepositioning = true;
+                carousel.scrollLeft = scrollLeft + setWidth;
+                setTimeout(() => { isRepositioning = false; }, 10);
+            }
+        });
+    </script>
+
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <!-- Three.js 3D Tree Scene -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+
+        // Camera - FIXED position, don't move this
+        const camera = new THREE.PerspectiveCamera(
+            50,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        camera.position.set(0, 2, 8);
+        camera.lookAt(0, 2, 0);
+
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.getElementById('tree-canvas').appendChild(renderer.domElement);
+
+        // Lighting - increased brightness to see the tree better
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+        scene.add(ambientLight);
+
+        const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight1.position.set(5, 10, 5);
+        scene.add(directionalLight1);
+
+        const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight2.position.set(-5, 5, -5);
+        scene.add(directionalLight2);
+
+        const directionalLight3 = new THREE.DirectionalLight(0xffffff, 0.3);
+        directionalLight3.position.set(0, -5, 5);
+        scene.add(directionalLight3);
+
+        // OrbitControls - custom touch/mouse controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 4;
+        controls.maxDistance = 15;
+        controls.target.set(0, 2, 0);
+        controls.maxPolarAngle = Math.PI / 1.5; // Limit vertical rotation
+
+        // Enable pan with 2 fingers
+        controls.enablePan = true;
+        controls.panSpeed = 0.8;
+        controls.screenSpacePanning = true;
+
+        // Touch controls
+        controls.touches = {
+            ONE: THREE.TOUCH.ROTATE,     // 1 finger = rotate tree
+            TWO: THREE.TOUCH.DOLLY_PAN   // 2 fingers = pan (hand tool) + zoom
+        };
+
+        // Mouse controls
+        controls.mouseButtons = {
+            LEFT: THREE.MOUSE.ROTATE,    // Left click drag = rotate
+            MIDDLE: THREE.MOUSE.DOLLY,   // Middle mouse = zoom
+            RIGHT: THREE.MOUSE.PAN       // Right click drag = pan
+        };
+
+        // Raycaster for detecting clicks on tree
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        // Track tree model and placed ornaments
+        let treeModel = null;
+        const placedOrnaments = [];
+
+        // Store original camera position for reset
+        const originalCameraPosition = new THREE.Vector3(0, 2, 8);
+        const originalCameraTarget = new THREE.Vector3(0, 2, 0);
+
+        // Load Christmas tree model
+        const loader = new GLTFLoader();
+        console.log('Starting to load christmas-tree.glb...');
+        loader.load(
+            'christmas-tree.glb',
+            (gltf) => {
+                console.log('Tree loaded successfully!', gltf);
+                const tree = gltf.scene;
+                treeModel = tree;  // Store reference for raycasting
+
+                // Apply the light mint green color
+                tree.traverse((child) => {
+                    if (child.isMesh) {
+                        console.log('Found mesh:', child);
+                        child.material = new THREE.MeshStandardMaterial({
+                            color: 0xD4E8D0,  // Light mint green
+                            roughness: 0.6,
+                            metalness: 0.1
+                        });
+                    }
+                });
+
+                // Center and scale tree - larger and centered better
+                const box = new THREE.Box3().setFromObject(tree);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+
+                console.log('Tree size:', size);
+                console.log('Tree center:', center);
+
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const scale = 5.0 / maxDim;  // Scaled to 5.0 for more breathing room
+                tree.scale.setScalar(scale);
+
+                tree.position.sub(center.multiplyScalar(scale));
+                tree.position.y = 2.6;  // Lower for some nice headspace
+
+                scene.add(tree);
+                console.log('Tree added to scene at position:', tree.position);
+            },
+            (xhr) => {
+                // Loading progress
+                const percent = xhr.total > 0 ? (xhr.loaded / xhr.total) * 100 : 0;
+                console.log(`Loading tree: ${Math.round(percent)}% (${(xhr.loaded / 1024 / 1024).toFixed(1)}MB loaded)`);
+            },
+            (error) => {
+                console.error('Error loading tree:', error);
+                alert('Error loading tree: ' + error.message);
+            }
+        );
+
+        // Function to place ornament on tree
+        function placeOrnament(iconName, position, normal) {
+            const textureLoader = new THREE.TextureLoader();
+            textureLoader.load(`icons/${iconName}`, (texture) => {
+                const material = new THREE.SpriteMaterial({
+                    map: texture,
+                    transparent: true
+                });
+
+                const sprite = new THREE.Sprite(material);
+                sprite.position.copy(position);
+
+                // Offset slightly from surface along normal
+                sprite.position.add(normal.multiplyScalar(0.15));
+
+                // Calculate aspect ratio from texture
+                const aspectRatio = texture.image.width / texture.image.height;
+
+                // Random size variation
+                const baseSize = 0.25 + Math.random() * 0.15;
+
+                // Preserve aspect ratio
+                if (aspectRatio > 1) {
+                    // Wider than tall
+                    sprite.scale.set(baseSize * aspectRatio, baseSize, 1);
+                } else {
+                    // Taller than wide
+                    sprite.scale.set(baseSize, baseSize / aspectRatio, 1);
+                }
+
+                // Store reference
+                sprite.userData = { icon: iconName };
+                placedOrnaments.push(sprite);
+
+                scene.add(sprite);
+                console.log('Ornament placed:', iconName);
+            });
+        }
+
+        // Click on canvas to place ornament or remove ornament
+        renderer.domElement.addEventListener('click', (e) => {
+            if (e.button !== 0) return; // Only left click
+
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            // If ornament is selected, try to place it
+            if (selectedOrnament && treeModel) {
+                const intersects = raycaster.intersectObject(treeModel, true);
+
+                if (intersects.length > 0) {
+                    const point = intersects[0].point;
+                    const normal = intersects[0].face.normal.clone();
+
+                    // Transform normal to world space
+                    normal.transformDirection(intersects[0].object.matrixWorld);
+
+                    placeOrnament(selectedOrnament, point, normal);
+
+                    // Deselect after placing
+                    selectedOrnament = null;
+                    if (selectedCarouselItem) {
+                        selectedCarouselItem.classList.remove('selected');
+                        selectedCarouselItem = null;
+                    }
+                    ornamentPreview.style.display = 'none';
+                    document.body.classList.remove('ornament-selected');
+                } else {
+                    console.log('Did not hit tree');
+                }
+            } else {
+                // No ornament selected, check if clicking on placed ornament to remove
+                const intersects = raycaster.intersectObjects(placedOrnaments);
+
+                if (intersects.length > 0) {
+                    const ornament = intersects[0].object;
+                    scene.remove(ornament);
+                    const index = placedOrnaments.indexOf(ornament);
+                    if (index > -1) {
+                        placedOrnaments.splice(index, 1);
+                        console.log('Ornament removed');
+                    }
+                }
+            }
+        });
+
+        // Reset view button
+        document.getElementById('resetButton').addEventListener('click', () => {
+            // Smoothly animate camera back to original position
+            const startPosition = camera.position.clone();
+            const startTarget = controls.target.clone();
+            const duration = 1000; // 1 second
+            const startTime = Date.now();
+
+            function animateReset() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
+                // Easing function (ease in-out)
+                const easeProgress = progress < 0.5
+                    ? 2 * progress * progress
+                    : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+                // Interpolate camera position
+                camera.position.lerpVectors(startPosition, originalCameraPosition, easeProgress);
+
+                // Interpolate controls target
+                controls.target.lerpVectors(startTarget, originalCameraTarget, easeProgress);
+
+                controls.update();
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateReset);
+                }
+            }
+
+            animateReset();
+            console.log('View reset to original position');
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // Help Dropdown Toggle
+        const helpButton = document.getElementById('helpButton');
+        const helpDropdown = document.getElementById('helpDropdown');
+
+        helpButton.addEventListener('click', function(e) {
+            e.stopPropagation();
+            helpButton.classList.toggle('open');
+            helpDropdown.classList.toggle('open');
+        });
+
+        // Close help dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const helpContainer = document.querySelector('.help-container');
+
+            if (!helpContainer.contains(event.target) && helpDropdown.classList.contains('open')) {
+                helpButton.classList.remove('open');
+                helpDropdown.classList.remove('open');
+            }
+        });
+
+        // Polaroid Camera Capture
+        const cameraButton = document.getElementById('cameraButton');
+        const flash = document.getElementById('flash');
+        const polaroidGallery = document.getElementById('polaroidGallery');
+        let polaroidCount = 0;
+
+        cameraButton.addEventListener('click', function() {
+            // Flash effect
+            flash.classList.add('active');
+            setTimeout(() => {
+                flash.classList.remove('active');
+            }, 150);
+
+            // Capture the canvas
+            setTimeout(() => {
+                capturePolaroid();
+            }, 100);
+        });
+
+        function capturePolaroid() {
+            const canvas = renderer.domElement;
+
+            // Render one more frame to ensure we get current state
+            renderer.render(scene, camera);
+
+            // Create a new canvas for the polaroid
+            const polaroidCanvas = document.createElement('canvas');
+            const polaroidWidth = 1200;
+            const polaroidHeight = 1500;
+            polaroidCanvas.width = polaroidWidth;
+            polaroidCanvas.height = polaroidHeight;
+
+            const ctx = polaroidCanvas.getContext('2d');
+
+            // White polaroid background with border
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, polaroidWidth, polaroidHeight);
+
+            // Add subtle border/shadow for polaroid effect
+            ctx.strokeStyle = '#EFEFEF';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, 0, polaroidWidth, polaroidHeight);
+
+            // Draw the tree image (square format with padding)
+            const padding = 60;
+            const imageSize = 1200 - (padding * 2);
+            const yOffset = padding;
+
+            // Crop the canvas to a square centered area
+            const sourceSize = Math.min(canvas.width, canvas.height);
+            const sourceX = (canvas.width - sourceSize) / 2;
+            const sourceY = (canvas.height - sourceSize) / 2;
+
+            ctx.drawImage(
+                canvas,
+                sourceX, sourceY, sourceSize, sourceSize,  // source
+                padding, yOffset, imageSize, imageSize      // destination
+            );
+
+            // Load and draw signature
+            const signature = new Image();
+            signature.src = 'signature.png';
+            signature.onload = function() {
+                // Draw signature in bottom right - bigger size
+                const sigHeight = 160;
+                const sigWidth = (signature.width / signature.height) * sigHeight;
+                ctx.drawImage(
+                    signature,
+                    polaroidWidth - sigWidth - 80,
+                    polaroidHeight - sigHeight - 60,
+                    sigWidth,
+                    sigHeight
+                );
+
+                // Add light grey border around the tree image (after signature so it's on top)
+                ctx.strokeStyle = '#D3D3D3';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(padding, yOffset, imageSize, imageSize);
+
+                // Convert to data URL and add to gallery
+                const dataUrl = polaroidCanvas.toDataURL('image/png');
+                addPolaroidToGallery(dataUrl);
+            };
+
+            console.log('Polaroid captured!');
+        }
+
+        function addPolaroidToGallery(dataUrl) {
+            polaroidCount++;
+
+            const polaroidItem = document.createElement('div');
+            polaroidItem.className = 'polaroid-item';
+            polaroidItem.dataset.id = polaroidCount;
+
+            const img = document.createElement('img');
+            img.className = 'polaroid-image';
+            img.src = dataUrl;
+
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'polaroid-download';
+            downloadBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#525252" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12V3M4 8l4 4 4-4"/></svg>';
+            downloadBtn.onclick = function(e) {
+                e.stopPropagation();
+                downloadPolaroid(dataUrl);
+            };
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'polaroid-delete';
+            deleteBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#525252" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l10 10M13 3L3 13"/></svg>';
+            deleteBtn.onclick = function(e) {
+                e.stopPropagation();
+                polaroidItem.remove();
+            };
+
+            polaroidItem.appendChild(img);
+            polaroidItem.appendChild(downloadBtn);
+            polaroidItem.appendChild(deleteBtn);
+
+            polaroidGallery.insertBefore(polaroidItem, polaroidGallery.firstChild);
+        }
+
+        function downloadPolaroid(dataUrl) {
+            const link = document.createElement('a');
+            const timestamp = new Date().getTime();
+            link.download = `christmas-tree-${timestamp}.png`;
+            link.href = dataUrl;
+            link.click();
+        }
+
+        // Christmas Jazz Music Player
+        const recordButton = document.getElementById('recordButton');
+        const prevSongBtn = document.getElementById('prevSong');
+        const nextSongBtn = document.getElementById('nextSong');
+        let audioPlayer = null;
+        let isPlaying = false;
+
+        // Curated list of vintage Christmas jazz songs
+        const christmasSongs = [
+            'https://www.bensound.com/bensound-music/bensound-jazzyfrenchy.mp3',
+            'https://www.bensound.com/bensound-music/bensound-jazzcomedy.mp3',
+            'https://www.bensound.com/bensound-music/bensound-slowmotion.mp3'
+        ];
+
+        let currentSongIndex = 0;
+
+        // Play specific song
+        function playSong(index) {
+            currentSongIndex = index;
+
+            if (!audioPlayer) {
+                audioPlayer = new Audio();
+                audioPlayer.volume = 0.4;
+
+                // Auto-play next song when current ends
+                audioPlayer.addEventListener('ended', function() {
+                    currentSongIndex = (currentSongIndex + 1) % christmasSongs.length;
+                    audioPlayer.src = christmasSongs[currentSongIndex];
+                    audioPlayer.play();
+                });
+            }
+
+            audioPlayer.src = christmasSongs[currentSongIndex];
+            audioPlayer.play();
+            recordButton.classList.add('playing');
+            isPlaying = true;
+        }
+
+        // Record button click - play/pause
+        recordButton.addEventListener('click', function() {
+            if (!audioPlayer) {
+                playSong(currentSongIndex);
+            } else if (isPlaying) {
+                // Pause music
+                audioPlayer.pause();
+                recordButton.classList.remove('playing');
+                isPlaying = false;
+            } else {
+                // Resume music
+                audioPlayer.play();
+                recordButton.classList.add('playing');
+                isPlaying = true;
+            }
+        });
+
+        // Previous song
+        prevSongBtn.addEventListener('click', function() {
+            currentSongIndex = (currentSongIndex - 1 + christmasSongs.length) % christmasSongs.length;
+            playSong(currentSongIndex);
+        });
+
+        // Next song
+        nextSongBtn.addEventListener('click', function() {
+            currentSongIndex = (currentSongIndex + 1) % christmasSongs.length;
+            playSong(currentSongIndex);
+        });
+
+        // Fireplace Ambience Player
+        const fireplaceButton = document.getElementById('fireplaceButton');
+        let fireplaceAudio = null;
+        let fireplaceIsPlaying = false;
+
+        fireplaceButton.addEventListener('click', function() {
+            if (!fireplaceAudio) {
+                fireplaceAudio = new Audio();
+                fireplaceAudio.src = 'fireplace.mp4';
+                fireplaceAudio.loop = true; // Loop the fireplace sound
+                fireplaceAudio.volume = 0.6;
+            }
+
+            if (fireplaceIsPlaying) {
+                // Stop fireplace
+                fireplaceAudio.pause();
+                fireplaceButton.classList.remove('playing');
+                fireplaceIsPlaying = false;
+            } else {
+                // Start fireplace
+                fireplaceAudio.play();
+                fireplaceButton.classList.add('playing');
+                fireplaceIsPlaying = true;
+            }
+        });
+
+    </script>
+</body>
+</html>
