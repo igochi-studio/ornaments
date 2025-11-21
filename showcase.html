@@ -1531,7 +1531,8 @@
         fireplaceButton.addEventListener('click', function() {
             if (!fireplaceAudio) {
                 fireplaceAudio = new Audio();
-                fireplaceAudio.src = 'fireplace.mp4';
+                // Use external URL for fireplace sound to avoid large file issues
+                fireplaceAudio.src = 'https://cdn.pixabay.com/download/audio/2022/03/24/audio_4fa8d9a9a4.mp3';
                 fireplaceAudio.loop = true; // Loop the fireplace sound
                 fireplaceAudio.volume = 0.6;
             }

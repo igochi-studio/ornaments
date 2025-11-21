@@ -1,10 +1,4 @@
 {
-  "git": {
-    "deploymentEnabled": {
-      "main": true
-    }
-  },
-  "buildCommand": "git lfs pull",
   "headers": [
     {
       "source": "/(.*).glb",
